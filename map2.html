@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>飲食店マップ</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<!-- MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+
+<style>
+html, body {height:100%; margin:0;}
+#app {display:grid; grid-template-columns:360px 1fr; height:100vh;}
+#sidebar {padding:12px; border-right:1px solid #ddd; overflow:auto;}
+#map {width:100%; height:100%;}
+label{display:block; margin-top:8px; font-weight:600;}
+input,textarea,select,button{width:100%; padding:8px; margin-top:4px; box-sizing:border-box;}
+.controls{display:flex;gap:8px; flex-wrap:wrap; margin-top:8px;}
+.place-item{padding:6px; border-bottom:1px solid #eee; cursor:pointer;}
+.place-item:hover{background:#fafafa;}
+.btn{cursor:pointer;}
+.footer-note{font-size:12px; color:#666; margin-top:12px;}
+img.photo{max-width:100%; border-radius:6px; margin-top:6px;}
+</style>
+
+<!-- Leaflet JS -->
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- MarkerCluster JS -->
+<script defer src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h2>行った飲食店マップ</h2>
+    <p>地図をクリックして来店情報を追加できます。住所検索も可能です。</p>
+
+    <label>住所で検索</label>
+    <div style="display:flex;gap:8px;">
+      <input id="addr" placeholder="例: 東京都渋谷区道玄坂">
+      <button id="btn-geocode">検索</button>
+    </div>
+
+    <label>フィルター</label>
+    <select id="filter-rating">
+      <option value="all">すべての評価</option>
+      <option value="4">評価 4以上</option>
+      <option value="3">評価 3以上</option>
+      <option value="2">評価 2以上</option>
+    </select>
+
+    <div class="controls">
+      <button id="btn-show-all" class="btn">全表示</button>
+      <button id="btn-export-json" class="btn">エクスポート (JSON)</button>
+      <button id="btn-export-csv" class="btn">エクスポート (CSV)</button>
+      <label style="display:inline-block;align-self:center;">インポート</label>
+      <input type="file" id="import-file" accept="application/json,text/json"/>
+    </div>
+
+    <hr>
+    <h3>保存済みの店舗 (<span id="count">0</span>)</h3>
+    <div id="places-list"></div>
+    <div class="footer-note">※ データはブラウザの localStorage に保存されます。</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+const STORAGE_KEY = 'visited_restaurants_v1';
+let data = [];
+let map, markersLayer;
+
+// 初期化
+function initMap(){
+  map = L.map('map').setView([35.6804, 139.7690], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'© OpenStreetMap contributors'
+  }).addTo(map);
+
+  markersLayer = L.markerClusterGroup();
+  map.addLayer(markersLayer);
+  map.on('click', onMapClick);
+}
+
+function onMapClick(e){
+  openAddForm(e.latlng.lat,e.latlng.lng);
+}
+
+function openAddForm(lat,lng,prefillName=''){
+  const formHtml = `
+    <div style="min-width:220px">
+      <label>店名</label>
+      <input id="f-name" value="${escapeHtml(prefillName)}"/>
+      <label>ジャンル</label><input id="f-type"/>
+      <label>来店日</label><input id="f-date" type="date"/>
+      <label>評価（1-5）</label>
+      <select id="f-rating">
+        <option value="5">5</option>
+        <option value="4">4</option>
+        <option value="3">3</option>
+        <option value="2">2</option>
+        <option value="1">1</option>
+      </select>
+      <label>メモ</label><textarea id="f-note" rows="3"></textarea>
+      <label>画像 URL</label><input id="f-photo" placeholder="https://..."/>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="f-save">保存</button>
+        <button id="f-cancel">キャンセル</button>
+      </div>
+    </div>`;
+  const popup = L.popup({maxWidth:400}).setLatLng([lat,lng]).setContent(formHtml).openOn(map);
+
+  setTimeout(()=>{
+    document.getElementById('f-save').onclick = ()=>{
+      const place = {
+        id: Date.now().toString(),
+        name: document.getElementById('f-name').value || '無題',
+        type: document.getElementById('f-type').value || '',
+        date: document.getElementById('f-date').value || '',
+        rating: parseInt(document.getElementById('f-rating').value)||0,
+        note: document.getElementById('f-note').value||'',
+        photo: document.getElementById('f-photo').value||'',
+        lat: lat,
+        lng: lng
+      };
+      data.push(place);
+      saveData();
+      addMarkerFromData(place);
+      map.closePopup();
+      renderList();
+    };
+    document.getElementById('f-cancel').onclick = ()=>map.closePopup();
+  },100);
+}
+
+function addMarkerFromData(place){
+  const marker = L.marker([place.lat,place.lng]);
+  const popupHtml = `
+    <div style="min-width:200px">
+      <strong>${escapeHtml(place.name)}</strong><br/>
+      ${place.type?`<em>${escapeHtml(place.type)}</em><br/>`:''}
+      ${place.date?`来店日: ${escapeHtml(place.date)}<br/>`:''}
+      評価: ${place.rating || '-'}<br/>
+      ${place.note?`<div style="margin-top:6px">${escapeHtml(place.note)}</div>`:''}
+      ${place.photo?`<img class="photo" src="${escapeAttr(place.photo)}" alt="photo" onerror="this.style.display='none'" />`:''}
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn" onclick="editPlace('${place.id}')">編集</button>
+        <button class="btn" onclick="deletePlace('${place.id}')">削除</button>
+      </div>
+    </div>`;
+  marker.bindPopup(popupHtml);
+  marker._placeId = place.id;
+  markersLayer.addLayer(marker);
+}
+
+function renderAllMarkers(){
+  markersLayer.clearLayers();
+  const minRating = getFilterMinRating();
+  for(const p of data){ if(minRating && p.rating<minRating) continue; addMarkerFromData(p); }
+}
+
+function renderList(){
+  const list = document.getElementById('places-list');
+  list.innerHTML = '';
+  const minRating = getFilterMinRating();
+  let cnt=0;
+  for(const p of data){
+    if(minRating && p.rating<minRating) continue;
+    cnt++;
+    const el = document.createElement('div');
+    el.className='place-item';
+    el.innerHTML = `<strong>${escapeHtml(p.name)}</strong> <span style="float:right">${p.rating||'-'}</span><br/><small>${escapeHtml(p.type)} ${p.date?'/ '+escapeHtml(p.date):''}</small>`;
+    el.onclick = ()=>{
+      map.setView([p.lat,p.lng],18);
+      const layer = findMarkerLayerByPlaceId(p.id);
+      if(layer) layer.openPopup();
+    };
+    list.appendChild(el);
+  }
+  document.getElementById('count').textContent = cnt.toString();
+}
+
+function findMarkerLayerByPlaceId(id){
+  let found = null;
+  markersLayer.eachLayer(l=>{ if(l._placeId===id) found=l; });
+  return found;
+}
+
+function editPlace(id){
+  const idx = data.findIndex(x=>x.id===id);
+  if(idx<0) return alert('見つかりません');
+  const p = data[idx];
+  openAddForm(p.lat,p.lng,p.name);
+}
+
+function deletePlace(id){
+  if(!confirm('削除しますか？')) return;
+  data = data.filter(x=>x.id!==id);
+  saveData();
+  renderAllMarkers();
+  renderList();
+}
+
+function saveData(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+}
+
+function loadData(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){ try{data=JSON.parse(raw)||[];}catch(e){data=[];} }
+  else data=[];
+}
+
+function geocodeAddress(q){
+  const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+  return fetch(url,{headers:{'Accept':'application/json'}})
+    .then(r=>r.json())
+    .then(j=>j.map(item=>({lat:parseFloat(item.lat),lng:parseFloat(item.lon),display_name:item.display_name})));
+}
+
+function setupUI(){
+  document.getElementById('btn-geocode').onclick=async()=>{
+    const q=document.getElementById('addr').value.trim();
+    if(!q) return alert('住所を入力してください');
+    try{
+      const res = await geocodeAddress(q);
+      if(res.length===0) return alert('該当なし');
+      const first=res[0];
+      map.setView([first.lat,first.lng],16);
+      openAddForm(first.lat,first.lng,first.display_name.split(',')[0]);
+    }catch(e){alert('検索エラー'); console.error(e);}
+  };
+  document.getElementById('filter-rating').onchange=()=>{renderAllMarkers();renderList();}
+  document.getElementById('btn-show-all').onclick=()=>{document.getElementById('filter-rating').value='all';renderAllMarkers();renderList();}
+  document.getElementById('btn-export-json').onclick=()=>{
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='visited_restaurants.json'; a.click(); URL.revokeObjectURL(url);
+  };
+  document.getElementById('btn-export-csv').onclick=()=>{
+    const header=['id','name','type','date','rating','note','photo','lat','lng'];
+    const rows = data.map(d=>header.map(h=>escapeCsv(String(d[h]??''))).join(','));
+    const csv=header.join(',')+'\n'+rows.join('\n');
+    const blob=new Blob([csv],{type:'text/csv'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='visited_restaurants.csv'; a.click(); URL.revokeObjectURL(url);
+  };
+  document.getElementById('import-file').onchange=(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const parsed=JSON.parse(reader.result);
+        if(!Array.isArray(parsed)) return alert('配列形式の JSON を選択してください');
+        for(const obj of parsed){ if(!('lat' in obj)||!('lng' in obj)||!('name' in obj)) return alert('フォーマット不正'); }
+        data=parsed;
+        saveData();
+        renderAllMarkers();
+        renderList();
+        alert('インポート完了');
+      }catch(err){alert('読み込みエラー: '+err.message);}
+    };
+    reader.readAsText(f);
+  };
+}
+
+function getFilterMinRating(){
+  const v=document.getElementById('filter-rating').value;
+  if(v==='all') return 0; return parseInt(v);
+}
+
+// ユーティリティ
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]);}
+function escapeAttr(s){return String(s).replace(/"/g,'&quot;');}
+function escapeCsv(s){return '"'+String(s).replace(/"/g,'""')+'"';}
+
+// 外部からも呼べる
+window.editPlace = editPlace;
+window.deletePlace = deletePlace;
+
+// 初期化
+initMap();
+loadData();
+setupUI();
+renderAllMarkers();
+renderList();
+
+});
+</script>
+</body>
+</html>
