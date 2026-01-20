@@ -8,23 +8,46 @@ CORS(app)
 
 DB_PATH = 'medical.db'
 
+# -----------------------
+# DB接続
+# -----------------------
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-# =====================================
-# HTML を返すルート
-# =====================================
+# -----------------------
+# テーブル自動作成
+# -----------------------
+def init_db():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS facilities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            type TEXT,
+            address TEXT,
+            phone TEXT,
+            lat REAL,
+            lng REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# -----------------------
+# HTMLルート
+# -----------------------
 @app.route("/")
 def index():
-    # app.py と同じフォルダに test.html を置くこと
+    # app.py と同じフォルダに test.html を置く
     return send_from_directory('.', 'test.html')
 
-# =====================================
-# API: 医療機関 CRUD
-# =====================================
-
+# -----------------------
+# API: すべての医療機関取得
+# -----------------------
 @app.route("/api/facilities", methods=["GET"])
 def get_facilities():
     conn = get_db()
@@ -34,6 +57,9 @@ def get_facilities():
     conn.close()
     return jsonify([dict(r) for r in rows])
 
+# -----------------------
+# API: 医療機関追加
+# -----------------------
 @app.route("/api/facilities", methods=["POST"])
 def add_facility():
     data = request.json
@@ -55,6 +81,9 @@ def add_facility():
     conn.close()
     return jsonify({"id": id})
 
+# -----------------------
+# API: 医療機関編集
+# -----------------------
 @app.route("/api/facilities/<int:id>", methods=["PUT"])
 def edit_facility(id):
     data = request.json
@@ -75,6 +104,9 @@ def edit_facility(id):
     conn.close()
     return jsonify({"status":"ok"})
 
+# -----------------------
+# API: 医療機関削除
+# -----------------------
 @app.route("/api/facilities/<int:id>", methods=["DELETE"])
 def delete_facility(id):
     conn = get_db()
@@ -84,6 +116,9 @@ def delete_facility(id):
     conn.close()
     return jsonify({"status":"ok"})
 
-# =====================================
+# -----------------------
+# メイン
+# -----------------------
 if __name__ == "__main__":
+    init_db()  # ← 起動時にテーブル作成
     app.run(debug=True)

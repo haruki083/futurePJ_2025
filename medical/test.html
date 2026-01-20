@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>医療機関マップ（DB対応）</title>
+<title>医療機関マップ</title>
 
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -16,12 +16,11 @@ html, body {height:100%; margin:0;}
 #sidebar {padding:12px; border-right:1px solid #ddd; overflow:auto;}
 #map {width:100%; height:100%;}
 label{display:block; margin-top:8px; font-weight:600;}
-input,button{width:100%; padding:8px; margin-top:4px; box-sizing:border-box;}
+input,textarea,select,button{width:100%; padding:8px; margin-top:4px; box-sizing:border-box;}
 .controls{display:flex;gap:8px; flex-wrap:wrap; margin-top:8px;}
 .place-item{padding:6px; border-bottom:1px solid #eee; cursor:pointer;}
 .place-item:hover{background:#fafafa;}
 .btn{cursor:pointer;}
-.footer-note{font-size:12px; color:#666; margin-top:12px;}
 </style>
 
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -33,33 +32,25 @@ input,button{width:100%; padding:8px; margin-top:4px; box-sizing:border-box;}
     <h2>医療機関マップ</h2>
     <p>地図をクリックして医療機関情報を追加できます。</p>
 
-    <label>住所で検索</label>
-    <div style="display:flex;gap:8px;">
-      <input id="addr" placeholder="例: 東京都渋谷区道玄坂">
-      <button id="btn-geocode">検索</button>
-    </div>
-
     <div class="controls">
-      <button id="btn-show-all" class="btn">全表示</button>
+      <button id="btn-refresh" class="btn">全表示</button>
     </div>
 
     <hr>
     <h3>保存済みの医療機関 (<span id="count">0</span>)</h3>
     <div id="places-list"></div>
-    <div class="footer-note">※ データはサーバーのデータベースに保存されます。</div>
   </div>
   <div id="map"></div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", function(){
+const mapCenter = [35.6804,139.7690]; // 東京駅
+let map, markersLayer, data=[];
 
-let data = [];
-let map, markersLayer;
-
-// 初期化
+// ------------------- 初期化 -------------------
 function initMap(){
-  map = L.map('map').setView([35.6804, 139.7690], 13);
+  map = L.map('map').setView(mapCenter, 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     maxZoom:19,
     attribution:'© OpenStreetMap contributors'
@@ -68,77 +59,30 @@ function initMap(){
   markersLayer = L.markerClusterGroup();
   map.addLayer(markersLayer);
   map.on('click', onMapClick);
+
+  loadData();
 }
 
-function onMapClick(e){
-  openAddForm(e.latlng.lat,e.latlng.lng);
+// ------------------- データ取得 -------------------
+async function loadData(){
+  try{
+    const res = await fetch("/api/facilities");
+    data = await res.json();
+    renderAllMarkers();
+    renderList();
+  }catch(e){ console.error("読み込みエラー", e);}
 }
 
-// 医療機関フォーム
-function openAddForm(lat, lng, prefillName='') {
-  const formHtml = `
-    <div style="min-width:240px">
-      <label>医療機関名</label>
-      <input id="f-name" value="${escapeHtml(prefillName)}"/>
-      
-      <label>診療科目</label>
-      <input id="f-type"/>
-      
-      <label>住所</label>
-      <input id="f-address"/>
-      
-      <label>電話番号</label>
-      <input id="f-phone" placeholder="例: 03-1234-5678"/>
-      
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="f-save">保存</button>
-        <button id="f-cancel">キャンセル</button>
-      </div>
-    </div>`;
-  
-  const popup = L.popup({maxWidth:400})
-    .setLatLng([lat,lng])
-    .setContent(formHtml)
-    .openOn(map);
-
-  setTimeout(() => {
-    document.getElementById('f-save').onclick = async () => {
-      const place = {
-        name: document.getElementById('f-name').value || '無題',
-        type: document.getElementById('f-type').value || '',
-        address: document.getElementById('f-address').value || '',
-        phone: document.getElementById('f-phone').value || '',
-        lat: lat,
-        lng: lng
-      };
-      try {
-        const res = await fetch("/api/facilities", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify(place)
-        });
-        const json = await res.json();
-        place.id = json.id;
-        data.push(place);
-        addMarkerFromData(place);
-        renderList();
-        map.closePopup();
-      } catch(e) { alert("保存エラー"); console.error(e); }
-    };
-    document.getElementById('f-cancel').onclick = () => map.closePopup();
-  }, 100);
-}
-
-// マーカー追加
+// ------------------- マーカー追加 -------------------
 function addMarkerFromData(place){
   const marker = L.marker([place.lat, place.lng]);
   const popupHtml = `
-    <div style="min-width:200px">
+    <div style="min-width:220px">
       <strong>${escapeHtml(place.name)}</strong><br/>
-      ${place.type ? `<em>${escapeHtml(place.type)}</em><br/>` : ''}
-      ${place.address ? `住所: ${escapeHtml(place.address)}<br/>` : ''}
-      ${place.phone ? `電話: ${escapeHtml(place.phone)}<br/>` : ''}
-      <div style="margin-top:8px;display:flex;gap:6px">
+      ${place.type?`診療科目: ${escapeHtml(place.type)}<br>`:''}
+      ${place.address?`住所: ${escapeHtml(place.address)}<br>`:''}
+      ${place.phone?`電話: ${escapeHtml(place.phone)}<br>`:''}
+      <div style="margin-top:6px;display:flex;gap:6px">
         <button class="btn" onclick="editPlace('${place.id}')">編集</button>
         <button class="btn" onclick="deletePlace('${place.id}')">削除</button>
       </div>
@@ -148,107 +92,127 @@ function addMarkerFromData(place){
   markersLayer.addLayer(marker);
 }
 
-// マーカー・一覧描画
 function renderAllMarkers(){
   markersLayer.clearLayers();
-  for(const p of data) addMarkerFromData(p);
+  data.forEach(addMarkerFromData);
 }
 
 function renderList(){
   const list = document.getElementById('places-list');
   list.innerHTML = '';
-  let cnt=0;
-  for(const p of data){
-    cnt++;
+  data.forEach(p=>{
     const el = document.createElement('div');
     el.className='place-item';
-    el.innerHTML = `<strong>${escapeHtml(p.name)}</strong><br/><small>${escapeHtml(p.type)} / ${escapeHtml(p.address)}</small>`;
-    el.onclick = ()=>{
-      map.setView([p.lat,p.lng],18);
-      const layer = findMarkerLayerByPlaceId(p.id);
-      if(layer) layer.openPopup();
-    };
+    el.innerHTML = `<strong>${escapeHtml(p.name)}</strong><br/>
+      ${p.type?escapeHtml(p.type)+' / ':''}${p.address?escapeHtml(p.address)+' / ':''}${p.phone?escapeHtml(p.phone):''}`;
+    el.onclick = ()=>{ map.setView([p.lat,p.lng],18); const m=findMarkerById(p.id); if(m)m.openPopup(); };
     list.appendChild(el);
-  }
-  document.getElementById('count').textContent = cnt.toString();
+  });
+  document.getElementById('count').textContent = data.length;
 }
 
-function findMarkerLayerByPlaceId(id){
+function findMarkerById(id){
   let found = null;
   markersLayer.eachLayer(l=>{ if(l._placeId==id) found=l; });
   return found;
 }
 
-// 編集
+// ------------------- 追加・編集ポップアップ -------------------
+function openAddForm(lat,lng,prefillName='',prefillType='',prefillAddress='',prefillPhone='', callback=null){
+  const formHtml = `
+    <div style="min-width:240px">
+      <label>医療機関名</label><input id="f-name" value="${escapeHtml(prefillName)}"/>
+      <label>診療科目</label><input id="f-type" value="${escapeHtml(prefillType)}"/>
+      <label>住所</label><input id="f-address" value="${escapeHtml(prefillAddress)}"/>
+      <label>電話番号</label><input id="f-phone" value="${escapeHtml(prefillPhone)}"/>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="f-save">保存</button>
+        <button id="f-cancel">キャンセル</button>
+      </div>
+    </div>`;
+  const popup = L.popup({maxWidth:400}).setLatLng([lat,lng]).setContent(formHtml).openOn(map);
+
+  setTimeout(()=>{
+    document.getElementById('f-save').onclick = async ()=>{
+      const place = {
+        id: callback ? undefined : Date.now().toString(),
+        name: document.getElementById('f-name').value || '無題',
+        type: document.getElementById('f-type').value || '',
+        address: document.getElementById('f-address').value || '',
+        phone: document.getElementById('f-phone').value || '',
+        lat: lat,
+        lng: lng
+      };
+      if(callback){
+        await callback(place); // 編集用
+      }else{
+        try{
+          const res = await fetch("/api/facilities", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body: JSON.stringify(place)
+          });
+          const json = await res.json();
+          place.id = json.id;
+          data.push(place);
+          addMarkerFromData(place);
+          renderList();
+          map.closePopup();
+        }catch(e){ alert("保存エラー"); console.error(e);}
+      }
+    };
+    document.getElementById('f-cancel').onclick = ()=>map.closePopup();
+  },100);
+}
+
+function onMapClick(e){
+  openAddForm(e.latlng.lat, e.latlng.lng);
+}
+
+// ------------------- 編集 -------------------
 async function editPlace(id){
   const idx = data.findIndex(x=>x.id==id);
-  if(idx<0) return alert('見つかりません');
+  if(idx<0) return alert("見つかりません");
   const p = data[idx];
-  const newName = prompt("医療機関名", p.name);
-  if(newName!==null){
-    p.name = newName;
-    await fetch(`/api/facilities/${id}`, {
-      method:"PUT",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(p)
-    });
+  openAddForm(p.lat,p.lng,p.name,p.type,p.address,p.phone, async (updated)=>{
+    try{
+      const res = await fetch(`/api/facilities/${id}`, {
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(updated)
+      });
+      if(!res.ok) throw new Error("更新失敗");
+      data[idx] = updated;
+      renderAllMarkers();
+      renderList();
+      map.closePopup();
+    }catch(e){ alert("編集保存エラー"); console.error(e);}
+  });
+}
+
+// ------------------- 削除 -------------------
+async function deletePlace(id){
+  if(!confirm("削除しますか？")) return;
+  try{
+    await fetch(`/api/facilities/${id}`, {method:"DELETE"});
+    data = data.filter(x=>x.id!=id);
     renderAllMarkers();
     renderList();
-  }
+  }catch(e){alert("削除エラー"); console.error(e);}
 }
 
-// 削除
-async function deletePlace(id){
-  if(!confirm('削除しますか？')) return;
-  await fetch(`/api/facilities/${id}`, {method:"DELETE"});
-  data = data.filter(x=>x.id!=id);
-  renderAllMarkers();
-  renderList();
-}
-
-// 住所検索
-async function geocodeAddress(q){
-  const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url);
-  const j = await res.json();
-  return j.map(item=>({lat:parseFloat(item.lat),lng:parseFloat(item.lon),display_name:item.display_name}));
-}
-
-// UI初期化
-function setupUI(){
-  document.getElementById('btn-geocode').onclick=async()=>{
-    const q=document.getElementById('addr').value.trim();
-    if(!q) return alert('住所を入力してください');
-    try{
-      const res = await geocodeAddress(q);
-      if(res.length===0) return alert('該当なし');
-      const first=res[0];
-      map.setView([first.lat,first.lng],16);
-      openAddForm(first.lat,first.lng,first.display_name.split(',')[0]);
-    }catch(e){alert('検索エラー'); console.error(e);}
-  };
-  document.getElementById('btn-show-all').onclick=()=>renderAllMarkers();
-}
-
-// DBからロード
-async function loadData(){
-  const res = await fetch("/api/facilities");
-  data = await res.json();
-  renderAllMarkers();
-  renderList();
-}
-
-// ユーティリティ
+// ------------------- ユーティリティ -------------------
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]);}
 
-// 初期化
-initMap();
-setupUI();
-loadData();
+// ------------------- UI -------------------
+document.getElementById('btn-refresh').onclick = ()=>{ loadData(); };
 
+// ------------------- グローバル公開 -------------------
 window.editPlace = editPlace;
 window.deletePlace = deletePlace;
 
+// ------------------- 初期化 -------------------
+initMap();
 });
 </script>
 </body>
