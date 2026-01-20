@@ -118,13 +118,14 @@ function findMarkerById(id){
 }
 
 // ------------------- 追加・編集ポップアップ -------------------
-function openAddForm(lat,lng,prefillName='',prefillType='',prefillAddress='',prefillPhone='', callback=null){
+function openAddForm(lat,lng,prefillName='',prefillType='',prefillAddress='',prefillPhone='',prefillNote='', callback=null){
   const formHtml = `
     <div style="min-width:240px">
       <label>医療機関名</label><input id="f-name" value="${escapeHtml(prefillName)}"/>
       <label>診療科目</label><input id="f-type" value="${escapeHtml(prefillType)}"/>
       <label>住所</label><input id="f-address" value="${escapeHtml(prefillAddress)}"/>
       <label>電話番号</label><input id="f-phone" value="${escapeHtml(prefillPhone)}"/>
+      <label>備考</label><textarea id="f-note" rows="3">${escapeHtml(prefillNote)}</textarea>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button id="f-save">保存</button>
         <button id="f-cancel">キャンセル</button>
@@ -140,6 +141,7 @@ function openAddForm(lat,lng,prefillName='',prefillType='',prefillAddress='',pre
         type: document.getElementById('f-type').value || '',
         address: document.getElementById('f-address').value || '',
         phone: document.getElementById('f-phone').value || '',
+        note: document.getElementById('f-note').value || '',
         lat: lat,
         lng: lng
       };
@@ -174,8 +176,9 @@ async function editPlace(id){
   const idx = data.findIndex(x=>x.id==id);
   if(idx<0) return alert("見つかりません");
   const p = data[idx];
-  openAddForm(p.lat,p.lng,p.name,p.type,p.address,p.phone, async (updated)=>{
+  openAddForm(p.lat,p.lng,p.name,p.type,p.address,p.phone,p.note, async (updated)=>{
     try{
+      updated.id = id;
       const res = await fetch(`/api/facilities/${id}`, {
         method:"PUT",
         headers:{"Content-Type":"application/json"},

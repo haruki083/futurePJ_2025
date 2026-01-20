@@ -6,7 +6,8 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-DB_PATH = 'medical.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "medical.db")
 
 # -----------------------
 # DB接続
@@ -29,6 +30,7 @@ def init_db():
             type TEXT,
             address TEXT,
             phone TEXT,
+            note TEXT,
             lat REAL,
             lng REAL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -66,13 +68,14 @@ def add_facility():
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO facilities (name,type,address,phone,lat,lng)
-        VALUES (?,?,?,?,?,?)
+        INSERT INTO facilities (name,type,address,phone,note,lat,lng)
+        VALUES (?,?,?,?,?,?,?)
     """, (
         data.get("name"),
         data.get("type"),
         data.get("address"),
         data.get("phone"),
+        data.get("note"),
         data.get("lat"),
         data.get("lng")
     ))
@@ -90,12 +93,13 @@ def edit_facility(id):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        UPDATE facilities SET name=?, type=?, address=?, phone=?, lat=?, lng=? WHERE id=?
+        UPDATE facilities SET name=?, type=?, address=?, phone=?, note=?, lat=?, lng=? WHERE id=?
     """, (
         data.get("name"),
         data.get("type"),
         data.get("address"),
         data.get("phone"),
+        data.get("note"),
         data.get("lat"),
         data.get("lng"),
         id
