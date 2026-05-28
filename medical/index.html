@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log & Forecast | High-Contrast & Delete</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+            background-attachment: fixed;
+        }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        }
+        .neon-indigo { color: #818cf8; text-shadow: 0 0 15px rgba(129, 140, 248, 0.5); }
+        .neon-emerald { color: #34d399; text-shadow: 0 0 15px rgba(52, 211, 153, 0.5); }
+        .active-task {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.5);
+        }
+        [v-cloak] { display: none; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        input, select {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen p-4 md:p-8">
+    <div id="app" v-cloak class="max-w-6xl mx-auto">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <header class="flex justify-between items-center mb-4">
+                    <div>
+                        <h1 class="text-3xl font-black tracking-tighter uppercase leading-none text-white">LOG <span class="text-indigo-400">&</span> FORECAST</h1>
+                        <div class="h-1 w-12 bg-indigo-500 mt-2 rounded-full"></div>
+                    </div>
+                    <button @click="showSettings = !showSettings" class="bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-white/10 transition">
+                        Settings
+                    </button>
+                </header>
+
+                <transition name="fade">
+                    <div v-if="showSettings" class="glass p-6 rounded-3xl space-y-6">
+                        <div class="flex flex-wrap gap-2">
+                            <div v-for="(cat, i) in categories" :key="cat.id" class="bg-white/5 border border-white/10 p-2 px-3 rounded-lg flex items-center gap-2 text-xs">
+                                <div class="w-3 h-3 rounded-full" :class="cat.color"></div>
+                                {{ cat.name }}
+                                <button @click="removeCategory(i)" class="ml-2 text-slate-500 hover:text-red-400">×</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 bg-black/20 p-4 rounded-2xl">
+                            <div class="flex gap-2">
+                                <input v-model="newCatName" @keyup.enter="addCategory" placeholder="New category name..." class="flex-1 p-3 rounded-xl outline-none">
+                                <button @click="addCategory" class="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-xl font-bold transition">Add</button>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button v-for="color in availableColors" :key="color" @click="newCatColor = color"
+                                        class="w-6 h-6 rounded-full transition-all flex items-center justify-center"
+                                        :class="[color, newCatColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-125' : 'opacity-60 hover:opacity-100']">
+                                    <span v-if="newCatColor === color" class="text-[8px] text-white">✓</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="glass p-6 rounded-3xl border-l-4 border-l-indigo-500">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Focus Sum</div>
+                        <div class="text-5xl font-black font-mono neon-indigo">{{ totalHours }}<span class="text-xl ml-2 font-normal opacity-40">h</span></div>
+                    </div>
+                    <div class="glass p-6 rounded-3xl border-l-4 border-l-emerald-500">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Remaining (Forecast)</div>
+                        <div class="text-5xl font-black font-mono text-white">{{ remainingHours }}<span class="text-xl ml-2 font-normal opacity-40">h</span></div>
+                    </div>
+                </div>
+
+                <div class="glass p-3 rounded-[2rem] flex flex-wrap gap-3">
+                    <select v-model="newTask.category" class="rounded-2xl px-4 py-3 text-xs font-bold outline-none cursor-pointer">
+                        <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                    </select>
+                    <input v-model="newTask.name" @keyup.enter="addTask" placeholder="Next mission..." class="flex-1 min-w-[200px] px-4 rounded-2xl outline-none">
+                    <input v-model.number="newTask.hours" placeholder="h" class="w-20 rounded-2xl text-center font-mono outline-none">
+                    <button @click="addTask" class="bg-indigo-600 hover:bg-indigo-500 w-12 h-12 rounded-2xl font-bold transition shadow-lg shadow-indigo-500/20">＋</button>
+                </div>
+
+                <div class="space-y-3">
+                    <div v-for="(item, index) in tasks" :key="index" 
+                         class="glass p-5 rounded-[2rem] flex items-center gap-4 transition-all group"
+                         :class="[item.done ? 'opacity-30' : '', activeTaskIndex === index ? 'active-task scale-[1.02]' : '']">
+                        
+                        <button @click="toggleDone(index)" class="w-10 h-10 rounded-2xl border-2 border-white/10 flex items-center justify-center transition" :class="{'bg-emerald-500 border-none': item.done}">
+                            <span v-if="item.done" class="text-white font-bold">✓</span>
+                        </button>
+
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="w-2 h-2 rounded-full" :class="getCategoryColor(item.category)"></div>
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ getCategoryName(item.category) }}</span>
+                            </div>
+                            <div class="text-lg font-bold text-white truncate">{{ item.name }}</div>
+                            <div class="flex gap-4 mt-1 text-[10px] font-mono">
+                                <span class="text-slate-500 italic">Est: {{ (item.hours * getBiasByCategory(item.category)).toFixed(1) }}h</span>
+                                <span class="neon-emerald font-bold">Act: {{ (item.actual || 0).toFixed(2) }}h</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <button v-if="activeTaskIndex !== index" @click="removeTask(index)" 
+                                    class="p-2 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-500" 
+                                    title="削除">
+                                <svg xmlns="http://www.w3.org/2001/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+
+                            <div v-if="activeTaskIndex === index" class="text-2xl font-mono font-black neon-indigo mr-2">
+                                {{ formatTime(elapsedSeconds) }}
+                            </div>
+                            <button v-if="!item.done" @click="startTimer(index)" 
+                                    class="px-6 py-3 rounded-2xl font-black text-[10px] tracking-widest transition"
+                                    :class="activeTaskIndex === index ? 'bg-red-500 text-white' : 'bg-white text-slate-900'">
+                                {{ activeTaskIndex === index ? 'STOP' : 'START' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="glass p-8 rounded-[2.5rem] bg-gradient-to-br from-slate-800 to-slate-900 border-none relative overflow-hidden text-center">
+                    <h3 class="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-6">Master Statistics</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-4xl font-black font-mono text-white">{{ history.length }}</div>
+                            <div class="text-[9px] text-slate-500 font-bold uppercase mt-1">Completed</div>
+                        </div>
+                        <div>
+                            <div class="text-4xl font-black font-mono neon-emerald">{{ totalActualTime.toFixed(1) }}h</div>
+                            <div class="text-[9px] text-slate-500 font-bold uppercase mt-1">Total Logged</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass p-6 rounded-[2.5rem] space-y-6">
+                    <input type="date" v-model="selectedDate" class="w-full bg-white/5 border-none text-[10px] rounded-lg p-2 outline-none">
+                    
+                    <div class="relative w-full aspect-square max-w-[180px] mx-auto" v-if="selectedDayTasks.length > 0">
+                        <canvas id="dayChart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span class="text-2xl font-black text-white">{{ selectedDayTotal.toFixed(1) }}</span>
+                            <span class="text-[8px] font-bold text-slate-500 uppercase">Daily h</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                        <div v-for="t in selectedDayTasks" class="p-3 rounded-2xl bg-white/5 flex justify-between items-center">
+                            <div class="min-w-0">
+                                <div class="text-[10px] font-bold text-white truncate">{{ t.name }}</div>
+                                <div class="text-[8px] text-slate-500 uppercase">{{ getCategoryName(t.category) }}</div>
+                            </div>
+                            <div class="text-xs font-mono font-bold text-indigo-400">{{ t.actual.toFixed(1) }}h</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="completeDay" v-if="tasks.length > 0" class="w-full py-5 rounded-[2rem] bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-[0.2em] transition">
+                    Complete Day & Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue
+        createApp({
+            setup() {
+                const availableColors = [
+                    'bg-slate-500', 'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-yellow-400', 
+                    'bg-lime-500', 'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-sky-500', 
+                    'bg-blue-600', 'bg-indigo-600', 'bg-violet-600', 'bg-purple-600', 'bg-fuchsia-500', 
+                    'bg-pink-500', 'bg-rose-500'
+                ]
+
+                const tasks = ref(JSON.parse(localStorage.getItem('tasks-v13') || '[]'))
+                const history = ref(JSON.parse(localStorage.getItem('history-v13') || '[]'))
+                const categories = ref(JSON.parse(localStorage.getItem('categories-v13')) || [
+                    { id: 'dev', name: 'Develop', color: 'bg-indigo-600' },
+                    { id: 'admin', name: 'Admin', color: 'bg-slate-500' }
+                ])
+
+                const showSettings = ref(false)
+                const newCatName = ref('')
+                const newCatColor = ref('bg-indigo-600')
+                const selectedDate = ref(new Date().toISOString().split('T')[0])
+                const newTask = ref({ name: '', hours: null, category: categories.value[0]?.id })
+                const activeTaskIndex = ref(null)
+                const elapsedSeconds = ref(0)
+                let timerInterval = null
+                let chartInstance = null
+
+                const formatTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`
+
+                const startTimer = (index) => {
+                    if (activeTaskIndex.value === index) { stopTimer(); return }
+                    if (activeTaskIndex.value !== null) stopTimer()
+                    activeTaskIndex.value = index; elapsedSeconds.value = 0
+                    timerInterval = setInterval(() => {
+                        elapsedSeconds.value++
+                        if (elapsedSeconds.value % 60 === 0) tasks.value[index].actual = (tasks.value[index].actual || 0) + (1/60)
+                    }, 1000)
+                }
+
+                const stopTimer = () => {
+                    if (activeTaskIndex.value !== null) tasks.value[activeTaskIndex.value].actual += (elapsedSeconds.value % 60) / 3600
+                    clearInterval(timerInterval); activeTaskIndex.value = null; saveData()
+                }
+
+                const removeTask = (index) => {
+                    if (confirm('このタスクを削除しますか？')) {
+                        tasks.value.splice(index, 1);
+                        saveData();
+                    }
+                }
+
+                const addCategory = () => {
+                    if (!newCatName.value) return
+                    categories.value.push({ id: 'cat-'+Date.now(), name: newCatName.value, color: newCatColor.value })
+                    newCatName.value = ''; saveData()
+                }
+
+                const removeCategory = (i) => {
+                    if (categories.value.length > 1) { categories.value.splice(i, 1); saveData() }
+                }
+
+                const updateChart = async () => {
+                    await nextTick()
+                    const canvas = document.getElementById('dayChart')
+                    if (!canvas) return
+                    if (chartInstance) chartInstance.destroy()
+                    const dayData = history.value.filter(t => t.completedAt === selectedDate.value)
+                    if (dayData.length === 0) return
+                    chartInstance = new Chart(canvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: dayData.map(t => t.name),
+                            datasets: [{
+                                data: dayData.map(t => t.actual),
+                                backgroundColor: dayData.map(() => '#818cf8'),
+                                borderWidth: 0
+                            }]
+                        },
+                        options: { plugins: { legend: { display: false } }, cutout: '85%', maintainAspectRatio: false }
+                    })
+                }
+
+                const getBiasByCategory = (cid) => {
+                    const h = history.value.filter(t => t.category === cid)
+                    if (h.length === 0) return 1.0
+                    return Math.max(0.5, Math.min(3.0, h.reduce((a, t) => a + t.actual, 0) / h.reduce((a, t) => a + t.hours, 0)))
+                }
+
+                const addTask = () => {
+                    if (!newTask.value.name || !newTask.value.hours) return
+                    tasks.value.push({...newTask.value, actual: 0, done: false})
+                    newTask.value.name = ''; saveData()
+                }
+
+                const saveData = () => {
+                    localStorage.setItem('tasks-v13', JSON.stringify(tasks.value))
+                    localStorage.setItem('history-v13', JSON.stringify(history.value))
+                    localStorage.setItem('categories-v13', JSON.stringify(categories.value))
+                }
+
+                const completeDay = () => {
+                    stopTimer()
+                    const today = new Date().toISOString().split('T')[0]
+                    history.value.push(...tasks.value.filter(t => t.actual > 0).map(t => ({...t, completedAt: today})))
+                    tasks.value = []; saveData(); updateChart()
+                }
+
+                onMounted(() => updateChart())
+                watch(selectedDate, () => updateChart())
+
+                return {
+                    tasks, history, categories, showSettings, newCatName, newCatColor, availableColors, selectedDate,
+                    newTask, activeTaskIndex, elapsedSeconds, formatTime, startTimer, stopTimer, removeTask,
+                    addCategory, removeCategory, addTask, completeDay, updateChart, getBiasByCategory,
+                    selectedDayTasks: computed(() => history.value.filter(t => t.completedAt === selectedDate.value)),
+                    selectedDayTotal: computed(() => history.value.filter(t => t.completedAt === selectedDate.value).reduce((a,t)=>a+t.actual, 0)),
+                    totalActualTime: computed(() => history.value.reduce((a,t)=>a+t.actual, 0)),
+                    totalHours: computed(() => (tasks.value.reduce((a,t)=>a+(t.actual||t.hours*getBiasByCategory(t.category)),0)*1.1).toFixed(1)),
+                    remainingHours: computed(() => (tasks.value.filter(t=>!t.done).reduce((a,t)=>a+t.hours*getBiasByCategory(t.category),0)*1.1).toFixed(1)),
+                    getCategoryColor: (id) => categories.value.find(c => c.id === id)?.color || 'bg-slate-400',
+                    getCategoryName: (id) => categories.value.find(c => c.id === id)?.name || 'NONE',
+                    toggleDone: (i) => { tasks.value[i].done = !tasks.value[i].done; saveData() }
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
