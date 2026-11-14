@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ record.title }}{% endblock %}
+{% block content %}
+<nav class="mb-2 small"><a href="{{ url_for('karte', student_id=student.id) }}">&laquo; {{ student.display_name }} さんのカルテ</a></nav>
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <span class="badge cat-{{ record.category }}">{{ record.category_label }}</span>
+        {% if record.attendance_status %}<span class="badge text-bg-light border">{{ record.attendance_label }}</span>{% endif %}
+        <h1 class="h4 mt-2">{{ record.title }}</h1>
+        <div class="text-muted small">
+          {{ record.record_date.strftime('%Y/%m/%d') }}{% if record.course %} ・ {{ record.course }}{% endif %}
+          ・ 更新 {{ record.updated_at.strftime('%Y/%m/%d %H:%M') }}
+        </div>
+      </div>
+      {% if current_user.id == student.id %}
+        <div class="d-flex gap-2 align-items-start">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('record_edit', record_id=record.id) }}">編集</a>
+          <form action="{{ url_for('record_delete', record_id=record.id) }}" method="POST" data-confirm="この記録を削除しますか？">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-sm btn-outline-danger">削除</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+    {% if record.body %}<hr>{{ ui.text_body(record.body) }}{% endif %}
+    {% if record.link_url %}<p class="mt-3 mb-0 small">関連リンク：{{ ui.external_link(record.link_url) }}</p>{% endif %}
+  </div>
+</div>
+
+<h2 class="h5">コメント</h2>
+{{ ui.message_list(messages, student) }}
+{{ ui.message_form(form, url_for('record_detail', record_id=record.id)) }}
+{% endblock %}

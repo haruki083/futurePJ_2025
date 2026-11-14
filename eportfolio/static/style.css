@@ -1,0 +1,18 @@
+/* eポートフォリオ 共通スタイル（CSPのためインラインstyleは使わない） */
+.pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.msg { max-width: 85%; }
+.msg-teacher { border-left: 4px solid var(--bs-primary); }
+.msg-student { border-left: 4px solid var(--bs-success); }
+
+.work-thumb { height: 160px; object-fit: cover; }
+.work-image { max-height: 480px; }
+
+/* 記録の種類ごとの色 */
+.cat-attendance { background-color: #0d6efd; color: #fff; }
+.cat-slack      { background-color: #611f69; color: #fff; }
+.cat-pj         { background-color: #fd7e14; color: #fff; }
+.cat-activity   { background-color: #198754; color: #fff; }
+.cat-other      { background-color: #6c757d; color: #fff; }
+
+#attendance-field.d-none { display: none; }

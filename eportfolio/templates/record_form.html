@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ '記録の編集' if record else '記録する' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ '記録の編集' if record else '記録する' }}</h1>
+<form action="{{ url_for('record_edit', record_id=record.id) if record else url_for('record_new') }}"
+      method="POST" novalidate class="col-lg-8">
+  {{ form.hidden_tag() }}
+  <div class="row">
+    <div class="col-md-6">{{ ui.field(form.category, id="category") }}</div>
+    <div class="col-md-6">{{ ui.field(form.record_date) }}</div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">{{ ui.field(form.course, placeholder="例：Webアプリケーション開発 / #web-app-dev") }}</div>
+    <div class="col-md-6" id="attendance-field">{{ ui.field(form.attendance_status) }}</div>
+  </div>
+  {{ ui.field(form.title) }}
+  {{ ui.field(form.body, rows=8, placeholder="授業で学んだこと、Slackに書いた内容、活動の様子など") }}
+  {{ ui.field(form.link_url, placeholder="https://...", help="Slackのメッセージは「リンクをコピー」で取得したURLを貼ると、流れていく情報をカルテに残せます。") }}
+  {{ form.submit(class="btn btn-primary") }}
+  <a class="btn btn-outline-secondary" href="{{ url_for('record_detail', record_id=record.id) if record else url_for('karte', student_id=current_user.id) }}">キャンセル</a>
+</form>
+{% endblock %}

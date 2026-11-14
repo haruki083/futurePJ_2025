@@ -1,0 +1,74 @@
+{# 共通マクロ #}
+
+{% macro flashes() %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="閉じる"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+{% endmacro %}
+
+{% macro field(f, help=None) %}
+  <div class="mb-3">
+    {% if f.type == "BooleanField" %}
+      <div class="form-check">
+        {{ f(class="form-check-input" ~ (" is-invalid" if f.errors else "")) }}
+        {{ f.label(class="form-check-label") }}
+      </div>
+    {% else %}
+      {{ f.label(class="form-label") }}
+      {% set cls = "form-select" if f.type == "SelectField" else "form-control" %}
+      {{ f(class=cls ~ (" is-invalid" if f.errors else ""), **kwargs) }}
+    {% endif %}
+    {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+    {% for error in f.errors %}
+      <div class="invalid-feedback d-block">{{ error }}</div>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro text_body(text) %}
+  {# 改行を保ったまま表示（HTMLは自動エスケープされる） #}
+  <div class="pre-wrap">{{ text }}</div>
+{% endmacro %}
+
+{% macro external_link(url, label=None) %}
+  <a href="{{ url }}" target="_blank" rel="noopener noreferrer nofollow">{{ label or url }}</a>
+{% endmacro %}
+
+{% macro message_list(messages, student) %}
+  {% if messages %}
+    <div class="vstack gap-2 mb-3">
+      {% for m in messages %}
+        {% set mine = current_user and m.author_id == current_user.id %}
+        <div class="card msg {{ 'msg-teacher' if m.author.is_teacher else 'msg-student' }} {{ 'ms-auto' if mine else '' }}">
+          <div class="card-body py-2">
+            <div class="small text-muted mb-1">
+              <span class="badge {{ 'text-bg-primary' if m.author.is_teacher else 'text-bg-success' }}">
+                {{ '教員' if m.author.is_teacher else '学生' }}
+              </span>
+              {{ m.author.display_name }} ・ {{ m.created_at.strftime('%Y/%m/%d %H:%M') }}
+              {% if m.record %}・ 記録「<a href="{{ url_for('record_detail', record_id=m.record.id) }}">{{ m.record.title }}</a>」へのコメント{% endif %}
+              {% if m.work %}・ 作品「<a href="{{ url_for('work_detail', work_id=m.work.id) }}">{{ m.work.title }}</a>」へのコメント{% endif %}
+              {% if mine and m.read_at %}<span class="ms-1">既読</span>{% endif %}
+            </div>
+            {{ text_body(m.body) }}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">まだメッセージはありません。</p>
+  {% endif %}
+{% endmacro %}
+
+{% macro message_form(form, action) %}
+  <form action="{{ action }}" method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.body, rows=3, placeholder="メッセージを入力") }}
+    {{ form.submit(class="btn btn-primary") }}
+  </form>
+{% endmacro %}

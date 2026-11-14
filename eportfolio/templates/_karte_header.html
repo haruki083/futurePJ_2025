@@ -1,0 +1,24 @@
+{# カルテ共通ヘッダ：学生プロフィール＋タブ #}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h1 class="h4 mb-1">{{ student.display_name }} さんのカルテ</h1>
+        <div class="text-muted small">
+          {% if student.student_no %}学籍番号 {{ student.student_no }}{% endif %}
+          {% if student.grade %} ・ {{ student.grade }}{% endif %}
+          ・ 未来創造PJ：{{ student.pj_assignment or '未登録' }}
+        </div>
+      </div>
+      {% if current_user.id == student.id %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_profile', student_id=student.id) }}">プロフィール編集</a>
+      {% endif %}
+    </div>
+    {% if student.bio %}<div class="mt-2">{{ ui.text_body(student.bio) }}</div>{% endif %}
+  </div>
+</div>
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'records' }}" href="{{ url_for('karte', student_id=student.id) }}">記録</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'works' }}" href="{{ url_for('works', student_id=student.id) }}">作品</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if tab == 'messages' }}" href="{{ url_for('messages', student_id=student.id) }}">対話</a></li>
+</ul>

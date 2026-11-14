@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}学生一覧{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">学生一覧</h1>
+<form class="row g-2 align-items-end mb-3" method="GET" action="{{ url_for('teacher_students') }}">
+  <div class="col-auto">
+    <label class="form-label small mb-0" for="q">氏名・ID・学籍番号</label>
+    <input class="form-control form-control-sm" id="q" name="q" value="{{ q }}" maxlength="100">
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0" for="pj">未来創造PJ</label>
+    <select class="form-select form-select-sm" id="pj" name="pj">
+      <option value="">すべて</option>
+      {% for name in pj_list %}<option value="{{ name }}" {{ 'selected' if name == pj }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-auto"><button class="btn btn-sm btn-secondary" type="submit">検索</button></div>
+</form>
+
+{% if students %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr><th>学籍番号</th><th>氏名</th><th>未来創造PJ</th><th class="text-end">記録</th><th>最終記録日</th><th class="text-end">作品</th><th>未読</th></tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+          {% set rs = record_stats.get(s.id) %}
+          <tr>
+            <td>{{ s.student_no or s.username }}</td>
+            <td><a href="{{ url_for('karte', student_id=s.id) }}">{{ s.display_name }}</a></td>
+            <td>{{ s.pj_assignment or '-' }}</td>
+            <td class="text-end">{{ rs[0] if rs else 0 }}</td>
+            <td>{{ rs[1].strftime('%Y/%m/%d') if rs and rs[1] else '-' }}</td>
+            <td class="text-end">{{ work_counts.get(s.id, 0) }}</td>
+            <td>
+              {% if unread.get(s.id) %}
+                <a class="badge text-bg-danger text-decoration-none" href="{{ url_for('messages', student_id=s.id) }}">{{ unread[s.id] }}件</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-muted">該当する学生はいません。</p>
+{% endif %}
+{% endblock %}

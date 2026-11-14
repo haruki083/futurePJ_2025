@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ student.display_name }} との対話{% endblock %}
+{% block content %}
+{% include "_karte_header.html" %}
+<p class="small text-muted">
+  記録や作品へのコメントもここにまとめて表示されます。Slack と違って流れていかないので、振り返りに使えます。
+</p>
+{{ ui.message_list(messages, student) }}
+{{ ui.message_form(form, url_for('messages', student_id=student.id)) }}
+{% endblock %}

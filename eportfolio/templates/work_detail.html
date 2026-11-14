@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ work.title }}{% endblock %}
+{% block content %}
+<nav class="mb-2 small"><a href="{{ url_for('works', student_id=student.id) }}">&laquo; {{ student.display_name }} さんの作品</a></nav>
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <h1 class="h4">{{ work.title }}</h1>
+        <div class="text-muted small">登録 {{ work.created_at.strftime('%Y/%m/%d') }} ・ 更新 {{ work.updated_at.strftime('%Y/%m/%d %H:%M') }}</div>
+      </div>
+      {% if current_user.id == student.id %}
+        <div class="d-flex gap-2 align-items-start">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('work_edit', work_id=work.id) }}">編集</a>
+          <form action="{{ url_for('work_delete', work_id=work.id) }}" method="POST" data-confirm="この作品を削除しますか？">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-sm btn-outline-danger">削除</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+    {% if work.description %}<hr>{{ ui.text_body(work.description) }}{% endif %}
+    {% if work.file_name %}
+      <hr>
+      {% if work.is_image %}
+        <img class="img-fluid rounded mb-2 work-image" src="{{ url_for('work_file', work_id=work.id) }}" alt="{{ work.title }}">
+      {% endif %}
+      <p class="small mb-0">
+        ファイル：<a href="{{ url_for('work_file', work_id=work.id) }}" target="_blank" rel="noopener">{{ work.original_name }}</a>
+        （<a href="{{ url_for('work_file', work_id=work.id, download=1) }}">ダウンロード</a>）
+      </p>
+    {% endif %}
+    {% if work.external_url %}<p class="small mt-2 mb-0">外部リンク：{{ ui.external_link(work.external_url) }}</p>{% endif %}
+  </div>
+</div>
+
+<h2 class="h5">コメント</h2>
+{{ ui.message_list(messages, student) }}
+{{ ui.message_form(form, url_for('work_detail', work_id=work.id)) }}
+{% endblock %}

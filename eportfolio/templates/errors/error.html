@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}エラー {{ code }}{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-5">{{ code }}</h1>
+  <p class="lead">{{ message }}</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">トップへ戻る</a>
+</div>
+{% endblock %}

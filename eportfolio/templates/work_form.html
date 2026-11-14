@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui with context %}
+{% block title %}{{ '作品の編集' if work else '作品を登録' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ '作品の編集' if work else '作品を登録' }}</h1>
+<form action="{{ url_for('work_edit', work_id=work.id) if work else url_for('work_new') }}"
+      method="POST" enctype="multipart/form-data" novalidate class="col-lg-8">
+  {{ form.hidden_tag() }}
+  {{ ui.field(form.title) }}
+  {{ ui.field(form.description, rows=5) }}
+  {{ ui.field(form.external_url, placeholder="https://...") }}
+  {{ ui.field(form.file, accept=".png,.jpg,.jpeg,.gif,.webp,.pdf",
+              help=("現在のファイル：" ~ work.original_name ~ "（選び直すと置き換わります）") if work and work.file_name else "ファイルか外部リンクの少なくとも一方を登録してください。") }}
+  {{ form.submit(class="btn btn-primary") }}
+  <a class="btn btn-outline-secondary" href="{{ url_for('work_detail', work_id=work.id) if work else url_for('works', student_id=current_user.id) }}">キャンセル</a>
+</form>
+{% endblock %}
